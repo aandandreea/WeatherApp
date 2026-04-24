@@ -11,38 +11,46 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class GeocodingService {
 
-        public final HttpClient client;
-        public final ObjectMapper objectMapper;
 
-    public GeocodingService() {
-        this.client = HttpClient.newHttpClient();
-        this.objectMapper = new ObjectMapper();
-    }
+    private static final String BASE_URL = "https://geocoding-api.open-meteo.com/v1/search";
 
-    public double[] getCoordinates(String city) throws Exception{
+    public Location getCoordinates(String city) {
 
-        String encodedCity = URLEncoder.encode(city,StandardCharsets.UTF_8);
-        String geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" + encodedCity + "&count=1";
+        try {
+            String encodedCity = URLEncoder.encode(city, StandardCharsets.UTF_8);
+            String url = BASE_URL + "?name=" + encodedCity + "&count=1";
 
-        HttpRequest geoRequest = HttpRequest.newBuilder()
-                .uri(URI.create(geoUrl))
-                .GET()
-                .build();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
 
-        HttpResponse<String> geoResponse = client.send(geoRequest, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-        JsonNode geoRoot = objectMapper.readTree(geoResponse.body());
-        JsonNode results = geoRoot.get("results");
+            ObjectMapper objectMapper = new ObjectMapper();
 
-        if(results == null || !results.isArray() || results.isEmpty()){
-            throw new Exception("City was not found");
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode results = root.get("results");
+
+            if (results == null || !results.isArray() || results.isEmpty()) {
+                throw new Exception("City was not found");
+            }
+
+            JsonNode firstResult = results.get(0);
+
+            String name = firstResult.get("name").asText();
+            double latitude = firstResult.get("latitude").asDouble();
+            double longitude = firstResult.get("longitude").asDouble();
+            String country = firstResult.get("country").asText();
+
+            return new Location(name, latitude, longitude, country);
+
+        } catch(Exception e){
+            System.out.println("Error getting coordinates" + e.getMessage());
         }
+        return null;
 
-        JsonNode firstResult = results.get(0);
-        double latitude = firstResult.get("latitude").asDouble();
-        double longitude = firstResult.get("longitude").asDouble();
-
-        return new double[]{latitude,longitude};
     }
 }
 
